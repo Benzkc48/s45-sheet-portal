@@ -110,9 +110,15 @@
   .sheet-view{max-width:1200px;margin:0 auto;padding:24px 40px 80px;}
   .sheet-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
   .sheet-title{color:var(--text-muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase;}
-  .sheet-frame-wrap{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--bg-panel);height:75vh;}
-  .sheet-frame{width:100%;height:100%;border:0;background:#fff;}
-  .sheet-hint{margin-top:12px;}
+  .sheet-title .count{color:var(--mint);}
+  .sheet-table-wrap{border:1px solid var(--border);border-radius:14px;overflow:auto;background:var(--bg-panel);max-height:75vh;}
+  .sheet-table{border-collapse:collapse;width:100%;min-width:1700px;font-size:12.5px;}
+  .sheet-table th{position:sticky;top:0;background:var(--bg-panel-2);color:var(--mint);text-align:left;padding:10px 12px;font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--border-strong);white-space:nowrap;z-index:1;}
+  .sheet-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:top;}
+  .sheet-table tbody tr:hover td{background:rgba(46,230,198,0.05);}
+  .sheet-table td.mono{color:var(--teal);}
+  .sheet-table-empty{padding:48px 24px;text-align:center;color:var(--text-muted);}
+  .sheet-hint{margin-top:12px;font-size:12px;color:var(--text-muted);line-height:1.6;}
 
   /* ---------- Script input mode toggle ---------- */
   .mode-toggle{display:flex;gap:8px;}
@@ -617,16 +623,14 @@
 
 <div id="viewSheet" class="sheet-view" style="display:none;">
   <div class="sheet-toolbar">
-    <span class="sheet-title mono">Google Sheet — บรีฟงานตัดต่อ</span>
-    <a class="btn btn-ghost" href="https://docs.google.com/spreadsheets/d/1B-TDi2YkgrKG5HeE0TFYfT6WhMB_mlO2RW3-BSmqF0I/edit?gid=2026162216#gid=2026162216" target="_blank" rel="noopener">
+    <span class="sheet-title mono">Google Sheet — บรีฟงานตัดต่อ <span class="count" id="sheetRowCount"></span></span>
+    <a class="btn btn-ghost" id="sheetOpenLink" href="#" target="_blank" rel="noopener" style="display:none;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
-      เปิดในแท็บใหม่
+      เปิด Google Sheet จริง
     </a>
   </div>
-  <div class="sheet-frame-wrap">
-    <iframe class="sheet-frame" id="sheetFrame" src="" data-src="https://docs.google.com/spreadsheets/d/1B-TDi2YkgrKG5HeE0TFYfT6WhMB_mlO2RW3-BSmqF0I/edit?gid=2026162216#gid=2026162216" loading="lazy" title="Google Sheet — บรีฟงานตัดต่อ"></iframe>
-  </div>
-  <p class="hint sheet-hint">หากตารางไม่แสดงผลหรือขึ้นหน้าล็อกอิน กรุณากด "เปิดในแท็บใหม่" ด้านบน (ต้องล็อกอิน Google ด้วยบัญชีที่มีสิทธิ์เข้าถึงชีตนี้)</p>
+  <div class="sheet-table-wrap" id="sheetTableWrap"></div>
+  <p class="hint sheet-hint">ตารางนี้แสดงข้อมูลชุดเดียวกับที่ซิงก์ขึ้น Google Sheet จริงโดยอัตโนมัติ (แท็บ "บรีฟ (ระบบ)") อัปเดตทันทีทุกครั้งที่เพิ่ม แก้ไข หรือลบบรีฟ — ไม่ใช่การฝังหน้า Google Sheet ตรงๆ เพราะ Google ไม่อนุญาตให้เว็บภายนอกฝังหน้า /edit แบบนั้นได้</p>
 </div>
 
 <!-- New / edit brief panel -->
@@ -772,6 +776,11 @@
   // วางลิงก์ Web App URL ที่ได้จากการ Deploy Google Apps Script ตรงนี้
   // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycb.../exec'
   const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbx3f_Mxsq3dBE3jHEsNzhT6nSQTUZKtR1NH7-PrZISgzWpF1PYciKsSBH8mqOpikxxv/exec';
+
+  // (ไม่บังคับ) ใส่ลิงก์ Google Sheet จริงที่ผูกกับ Apps Script ด้านบน ถ้าต้องการปุ่ม
+  // "เปิด Google Sheet จริง" ในแท็บ Google Sheet ของเว็บนี้ — ปล่อยว่างไว้ได้ ปุ่มจะซ่อนอัตโนมัติ
+  // ตัวอย่าง: 'https://docs.google.com/spreadsheets/d/xxxxxxxx/edit'
+  const REAL_SHEET_URL = '';
 
   function defaultScriptRows(){
     return [
@@ -1024,6 +1033,7 @@
 
   function render(){
     renderStats();
+    renderSheetTable();
     const rowsEl = $('rows');
     const filtered = activeFilter === 'all' ? briefs : briefs.filter(b => b.status === activeFilter);
     $('rowCount').textContent = briefs.length + ' บรีฟทั้งหมด' + (activeFilter !== 'all' ? ' · แสดง ' + filtered.length : '');
@@ -1078,6 +1088,72 @@
   function escapeHtml(s){
     if(!s) return '';
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ---- แท็บ "Google Sheet": ตารางในแอปที่ mirror คอลัมน์เดียวกับที่ syncToSheet() ส่งไปเขียนชีตจริง ----
+  // (ไม่ใช้ iframe ฝัง Google Sheet เพราะ Google บล็อกไม่ให้เว็บภายนอกฝังหน้า /edit ได้)
+  function scriptToTextClient(script){
+    if(!script || !script.length) return '';
+    return script.map(r => {
+      const head = [r.q, r.label].filter(Boolean).join(' ');
+      return (head ? '— ' + head + ' —\n' : '') +
+        'เสียง: ' + (r.sound || '-') + '\n' +
+        'ภาพ: ' + (r.visual || '-') + '\n' +
+        'หมายเหตุ: ' + (r.note || '-');
+    }).join('\n\n');
+  }
+
+  function attachmentLabel(b){
+    if(!b.attachment) return '';
+    return b.attachment.name + ' (' + Math.round((b.attachment.size || 0) / 1024) + ' KB)';
+  }
+
+  const SHEET_TABLE_HEADERS = ['ID','ชื่อคลิป','ชื่อ','หัวข้อ','Editor','Script writer','Platform','Sequence','สถานะ','อีเมล','สคริปต์','หมายเหตุเพิ่มเติม','ไฟล์แนบ','สร้างเมื่อ','แก้ไขล่าสุด','ส่งอีเมลแล้ว (ครั้ง)','ส่งล่าสุดเมื่อ'];
+
+  function renderSheetTable(){
+    const wrap = $('sheetTableWrap');
+    if(!wrap) return;
+    const countEl = $('sheetRowCount');
+    if(countEl) countEl.textContent = briefs.length ? '· ' + briefs.length + ' แถว' : '';
+    const linkEl = $('sheetOpenLink');
+    if(linkEl){
+      if(REAL_SHEET_URL){ linkEl.href = REAL_SHEET_URL; linkEl.style.display = ''; }
+      else{ linkEl.style.display = 'none'; }
+    }
+    if(!briefs.length){
+      wrap.innerHTML = `<div class="sheet-table-empty">ยังไม่มีข้อมูลบรีฟ — เพิ่มบรีฟจากแท็บ "บอร์ดบรีฟ" แล้วจะขึ้นที่นี่ทันที</div>`;
+      return;
+    }
+    const bodyRows = briefs.map(b => {
+      const cells = [
+        clipCode(b.seq),
+        b.clip || '',
+        b.name || '',
+        b.topic || '',
+        b.editor || '',
+        b.writer || '',
+        b.platform || '',
+        b.sequence || '',
+        b.status || '',
+        b.email || '',
+        scriptToTextClient(b.script) || (b.detail || ''),
+        b.detail || '',
+        attachmentLabel(b),
+        fmtDate(b.created),
+        fmtDate(b.updated),
+        String(b.sentCount || 0),
+        b.lastSentAt ? fmtDate(b.lastSentAt) : ''
+      ];
+      return '<tr>' + cells.map((c, i) => {
+        const safe = escapeHtml(c);
+        return `<td class="${i === 0 ? 'mono' : ''}" title="${safe}">${safe || '—'}</td>`;
+      }).join('') + '</tr>';
+    }).join('');
+    wrap.innerHTML = `
+      <table class="sheet-table">
+        <thead><tr>${SHEET_TABLE_HEADERS.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>`;
   }
 
   function formatBytes(n){
@@ -1510,8 +1586,7 @@
     $('viewBoard').style.display = view === 'board' ? '' : 'none';
     $('viewSheet').style.display = view === 'sheet' ? '' : 'none';
     if(view === 'sheet'){
-      const frame = $('sheetFrame');
-      if(frame && !frame.getAttribute('src')) frame.setAttribute('src', frame.dataset.src);
+      renderSheetTable();
     }
   });
 
