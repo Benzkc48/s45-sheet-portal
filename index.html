@@ -218,11 +218,6 @@
   }
   .icon-btn:hover{border-color:var(--border-strong);color:var(--text);}
   .icon-btn.danger:hover{border-color:var(--danger);color:var(--danger);}
-  .mail-count-badge{
-    position:absolute;top:-5px;right:-5px;min-width:14px;height:14px;padding:0 3px;
-    border-radius:7px;background:var(--teal);color:#04120e;font-family:'JetBrains Mono',monospace;
-    font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;
-  }
 
   .empty{padding:70px 20px;text-align:center;color:var(--text-muted);}
   .empty .mono{color:var(--teal);display:block;margin-bottom:10px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;}
@@ -348,6 +343,7 @@
   .attach-chip .attach-remove{flex:none;}
   .attach-empty{font-size:12.5px;color:var(--text-muted);}
   .row .attach-flag{color:var(--teal);display:flex;align-items:center;}
+  .row .sent-flag{color:var(--teal);display:flex;align-items:center;}
   .status-row{display:flex;gap:8px;flex-wrap:wrap;}
   .status-opt{
     flex:1;min-width:90px;text-align:center;padding:9px 8px;border-radius:8px;
@@ -714,14 +710,11 @@
     <div class="field">
       <label>ส่งอีเมลถึง (ไม่บังคับ)</label>
       <input type="email" id="fEmail" placeholder="editor@example.com" />
+      <div class="hint">ถ้าใส่อีเมลไว้ ระบบจะส่งบรีฟนี้ให้ทางอีเมลอัตโนมัติทุกครั้งที่กด "บันทึกลงตาราง" ด้านล่าง (ไม่ต้องกดส่งเอง)</div>
     </div>
   </div>
   <div class="panel-foot">
     <div class="row-btns">
-      <button class="btn btn-ghost" id="sendEmailBtn" style="flex:1;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z" opacity="0"/><path d="m22 6-10 7L2 6"/><path d="M2 6h20v12H2z"/></svg>
-        ส่งอีเมล
-      </button>
       <button class="btn btn-primary" id="saveBriefBtn" style="flex:1;">บันทึกลงตาราง</button>
     </div>
     <span class="save-note" id="saveNote"></span>
@@ -1067,12 +1060,9 @@
         <span class="status-pill" style="background:${meta.dim};color:${meta.color};">${b.status}</span>
         <span class="actions">
           ${b.attachment ? `<span class="attach-flag" title="มีไฟล์แนบ: ${escapeHtml(b.attachment.name)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.44 11.05-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95L9.64 17.62a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>` : ''}
+          ${b.sentCount ? `<span class="sent-flag" title="ส่งอีเมลแล้ว ${b.sentCount} ครั้ง · ล่าสุด ${fmtDate(b.lastSentAt)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 6-10 7L2 6"/><path d="M2 6h20v12H2z"/></svg></span>` : ''}
           <button class="icon-btn" data-action="view" data-id="${b.id}" title="ดูบรีฟ">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-          <button class="icon-btn" data-action="mail" data-id="${b.id}" title="ส่งอีเมล${b.sentCount ? ' · ส่งแล้ว ' + b.sentCount + ' ครั้ง' : ''}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 6-10 7L2 6"/><path d="M2 6h20v12H2z"/></svg>
-            ${b.sentCount ? `<span class="mail-count-badge">${b.sentCount}</span>` : ''}
           </button>
           <button class="icon-btn" data-action="edit" data-id="${b.id}" title="แก้ไข">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -1196,19 +1186,6 @@
     renderScriptTable();
   }
 
-  function scriptRowsText(b){
-    if(!b.script || !b.script.length) return '';
-    return b.script.map(r => {
-      const head = [r.q, r.label].filter(Boolean).join(' ');
-      return [
-        head ? '— ' + head + ' —' : '—',
-        'เสียง: ' + (r.sound || '-'),
-        'ภาพ: ' + (r.visual || '-'),
-        'หมายเหตุ: ' + (r.note || '-')
-      ].join('\n');
-    }).join('\n\n');
-  }
-
   function scriptRowsHtml(b){
     if(!b.script || !b.script.length) return '';
     return b.script.map(r => `
@@ -1306,6 +1283,27 @@
     return briefs.reduce((max,b) => Math.max(max, b.seq||0), 0) + 1;
   }
 
+  // ส่งอีเมลบรีฟจริงผ่าน Google Apps Script (MailApp) แทน mailto — ทำงานเบื้องหลัง
+  // ไม่เปิดโปรแกรมอีเมลของผู้ใช้ ต้องตั้งค่า GAS_WEBHOOK_URL ไว้ก่อน (ดูคอมเมนต์ด้านบน)
+  // หมายเหตุ: เป็นการยิงคำขอแบบ no-cors จึงรู้แค่ว่า "ส่งคำขอสำเร็จ" ไม่สามารถอ่าน
+  // ผลลัพธ์จริงฝั่ง Apps Script ได้ (เช่น โควตาส่งอีเมลเต็ม หรืออีเมลผิดรูปแบบ)
+  async function sendBriefEmailViaBackend(brief){
+    if(!GAS_WEBHOOK_URL || GAS_WEBHOOK_URL.indexOf('PASTE_YOUR') === 0) return false;
+    if(!brief || !brief.email) return false;
+    try{
+      await fetch(GAS_WEBHOOK_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'sendBriefEmail', brief })
+      });
+      return true;
+    }catch(e){
+      console.warn('send brief email failed:', e);
+      return false;
+    }
+  }
+
   async function saveBrief(){
     const clip = $('fClip').value.trim();
     const name = $('fName').value.trim();
@@ -1323,13 +1321,15 @@
     }
 
     const now = Date.now();
+    let savedBrief;
     if(editingId){
       const idx = briefs.findIndex(b => b.id === editingId);
       if(idx > -1){
         briefs[idx] = {...briefs[idx], clip, name, topic, detail, email, script, attachment: currentAttachment, status: selectedStatus, platform: selectedPlatform, editor: selectedEditor, writer: selectedWriter, sequence: selectedSequence, updated: now};
+        savedBrief = briefs[idx];
       }
     }else{
-      briefs.unshift({
+      savedBrief = {
         id: 'b_' + now + '_' + Math.random().toString(36).slice(2,7),
         seq: nextSeq(),
         clip, name, topic, detail, email, script,
@@ -1340,64 +1340,35 @@
         writer: selectedWriter,
         sequence: selectedSequence,
         created: now, updated: now
-      });
+      };
+      briefs.unshift(savedBrief);
     }
 
     $('saveNote').textContent = 'กำลังบันทึก…';
     await persist();
-    $('saveNote').textContent = storageOk ? 'บันทึกแล้ว' : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
-    $('saveNote').className = 'save-note' + (storageOk ? ' ok' : '');
+
+    if(!storageOk){
+      $('saveNote').textContent = 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
+      $('saveNote').className = 'save-note';
+      render();
+      return;
+    }
+
+    if(email){
+      $('saveNote').textContent = 'บันทึกแล้ว · กำลังส่งอีเมลถึง ' + email + '…';
+      const sent = await sendBriefEmailViaBackend(savedBrief);
+      if(sent){
+        await recordSend(savedBrief);
+        $('saveNote').textContent = 'บันทึกแล้ว · ส่งอีเมลถึง ' + email + ' แล้ว';
+      }else{
+        $('saveNote').textContent = 'บันทึกแล้ว (ส่งอีเมลไม่สำเร็จ — ตรวจสอบ GAS_WEBHOOK_URL)';
+      }
+    }else{
+      $('saveNote').textContent = 'บันทึกแล้ว (ไม่ได้ระบุอีเมลผู้รับ จึงไม่ได้ส่ง)';
+    }
+    $('saveNote').className = 'save-note ok';
     render();
-    setTimeout(closePanel, 500);
-  }
-
-  function mailBodyFor(b){
-    const lines = [
-      'ชื่อคลิป: ' + (b.clip || '-'),
-      'ชื่อ: ' + (b.name || '-'),
-      'หัวข้อ: ' + (b.topic || '-'),
-      'Platform: ' + (b.platform || '-'),
-      'Sequence: ' + (b.sequence || '-'),
-      'Editor: ' + (b.editor || '-'),
-      'Script writer: ' + (b.writer || '-'),
-      '',
-      'สคริปต์:',
-      scriptRowsText(b) || (b.detail || '-'),
-    ];
-    if(b.detail && b.script && b.script.length){
-      lines.push('', 'หมายเหตุเพิ่มเติม:', b.detail);
-    }
-    if(b.attachment){
-      lines.push('', 'ไฟล์แนบ: ' + b.attachment.name + ' (กรุณาแนบไฟล์นี้แยกต่างหากในอีเมล เนื่องจาก mailto ไม่รองรับไฟล์แนบอัตโนมัติ)');
-    }
-    return lines.join('\n');
-  }
-
-  function currentDraftFromForm(){
-    collectScriptRows();
-    const existing = editingId ? briefs.find(b => b.id === editingId) : null;
-    return {
-      id: existing ? existing.id : null,
-      seq: existing ? existing.seq : null,
-      clip: $('fClip').value.trim() || '(ไม่มีชื่อคลิป)',
-      name: $('fName').value.trim(),
-      topic: $('fTopic').value.trim(),
-      detail: $('fDetail').value.trim(),
-      editor: selectedEditor,
-      writer: selectedWriter,
-      platform: selectedPlatform,
-      sequence: selectedSequence,
-      script: scriptRows.map(r => ({...r})),
-      attachment: currentAttachment,
-      email: $('fEmail').value.trim(),
-    };
-  }
-
-  function buildMailto(brief){
-    const subject = 'บรีฟงานตัดต่อ: ' + brief.clip;
-    const body = mailBodyFor(brief);
-    const params = new URLSearchParams({subject, body});
-    return 'mailto:' + encodeURIComponent(brief.email||'') + '?' + params.toString().replace(/\+/g,'%20');
+    setTimeout(closePanel, 900);
   }
 
   function openDetail(b){
@@ -1423,16 +1394,11 @@
       ${b.attachment ? `<div class="attach-chip" style="margin-top:14px;"><span class="attach-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><span class="attach-name">${escapeHtml(b.attachment.name)}</span><span class="attach-size">${formatBytes(b.attachment.size)}</span><a class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" href="${b.attachment.dataUrl}" download="${escapeHtml(b.attachment.name)}">ดาวน์โหลด</a></div>` : ''}
       <div class="modal-foot">
         <button class="btn btn-ghost" id="detailEdit">แก้ไข</button>
-        <button class="btn btn-blue" id="detailMail">ส่งอีเมล</button>
         <button class="btn btn-primary" id="detailClose">ปิด</button>
       </div>
     `;
     $('detailOverlay').classList.add('open');
     $('detailEdit').onclick = () => { closeDetail(); openPanel(b); };
-    $('detailMail').onclick = () => {
-      window.location.href = buildMailto(b);
-      recordSend(b);
-    };
     $('detailClose').onclick = closeDetail;
   }
   function closeDetail(){ $('detailOverlay').classList.remove('open'); }
@@ -1473,11 +1439,6 @@
     const idx = Number(btn.closest('.script-row').dataset.idx);
     scriptRows.splice(idx, 1);
     renderScriptTable();
-  });
-  $('sendEmailBtn').addEventListener('click', () => {
-    const draft = currentDraftFromForm();
-    window.location.href = buildMailto(draft);
-    recordSend(draft);
   });
   $('detailOverlay').addEventListener('click', (e) => { if(e.target.id === 'detailOverlay') closeDetail(); });
 
@@ -1527,9 +1488,6 @@
           await persist();
           render();
         }
-      }else if(action === 'mail'){
-        window.location.href = buildMailto(brief);
-        recordSend(brief);
       }
       return;
     }
